@@ -12,4 +12,4 @@
 
 需赋予**xbar** Full Disk Access 权限。见下图
 
-!()[images/macosx_full_disk_access.png]
+![](images/macosx_full_disk_access.png)
