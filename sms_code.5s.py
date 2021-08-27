@@ -8,12 +8,13 @@
 #  <xbar.abouturl>https://github.com/jinuljt/xbar-plugins</xbar.abouturl>
 # Variables become preferences in the app:
 #
-#  <xbar.var>string(VAR_SECONDS="5"): 获取最后x秒的短信，与脚本refresh时间一致</xbar.var>
+#  <xbar.var>string(VAR_INTERVAL="6"): 获取最后x秒的短信，建议 refresh时间 + 1s</xbar.var>
 # 1 sqlite 读取 imessage 短信内容。获取连续的数字， 4位 or 6位
 # 2 注入剪贴板
 # 3 通过notification提示
 
 import datetime
+import time
 import os
 import re
 import sqlite3
@@ -26,9 +27,9 @@ CODE_PATTERN = "[0-9]{4,6}"  # 验证码特征
 
 def get_messages():
     # 计算gap 时间
-    now = datetime.datetime.utcnow()
+    ts = time.time()
     base_dt = datetime.datetime(2001, 1, 1, 0, 0)
-    date = ((now - base_dt).total_seconds() - int(os.environ['VAR_SECONDS']))* 1000000000
+    date = (ts - base_dt.timestamp() - int(os.environ['VAR_INTERVAL']))* 1000000000
 
     con = sqlite3.connect(CHAT_DB)
     cur = con.cursor()
@@ -55,9 +56,9 @@ def get_messages():
 if __name__ == "__main__":
     messages = get_messages()
     if len(messages) > 0:
-        print(f"新({len(messages)})| color=red")
+        print(f"📬({len(messages)})| color=red")
     else:
-        print("无")
+        print("🈳")
     print("---")
 
     for message in messages:
