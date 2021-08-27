@@ -19,10 +19,17 @@ import os
 import re
 import sqlite3
 import subprocess
+import sys
+
 
 CHAT_DB = f"{os.environ['HOME']}/Library/Messages/chat.db"
 SEARCH_PATTERN = "(验证码)"  # 验证码短信特征
 CODE_PATTERN = "[0-9]{4,6}"  # 验证码特征
+
+
+def text_to_clipboard(text):
+    p = subprocess.Popen("pbcopy", stdin=subprocess.PIPE)
+    p.communicate(text.encode())
 
 
 def get_messages():
@@ -43,24 +50,24 @@ def get_messages():
             m = re.search(CODE_PATTERN, message)
             if m:
                 code = message[m.start():m.end()]
-                messages.append(f"【{code}】 =》 {message}")
+                messages.append((code, message))
 
                 # 注入剪贴板
-                p = subprocess.Popen("pbcopy", stdin=subprocess.PIPE)
-                p.communicate(code.encode())
+                text_to_clipboard(code)
     con.close()
 
     return messages
 
 
 if __name__ == "__main__":
-    messages = get_messages()
-    if len(messages) > 0:
-        print(f"📬({len(messages)})| color=red")
+    if len(sys.argv) == 1:
+        messages = get_messages()
+        if len(messages) > 0:
+            print(f"📬({len(messages)})| color=red")
+        else:
+            print("🈳")
+        print("---")
+        for code, message in messages:
+            print(f"{code} =》 {message} | shell=\"{sys.argv[0]}\" param1={code}")
     else:
-        print("🈳")
-    print("---")
-
-    for message in messages:
-        print(f"{message} | shell=$0 | param1=hahaha")
-    
+        text_to_clipboard(sys.argv[1])
