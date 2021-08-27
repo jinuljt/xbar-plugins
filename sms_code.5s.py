@@ -9,9 +9,7 @@
 # Variables become preferences in the app:
 #
 #  <xbar.var>string(VAR_INTERVAL="6"): 获取最后x秒的短信，建议 refresh时间 + 1s</xbar.var>
-# 1 sqlite 读取 imessage 短信内容。获取连续的数字， 4位 or 6位
-# 2 注入剪贴板
-# 3 通过notification提示
+
 
 import datetime
 import time
