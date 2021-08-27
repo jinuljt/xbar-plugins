@@ -28,7 +28,7 @@ CODE_PATTERN = "[0-9]{4,6}"  # 验证码特征
 def get_messages():
     # 计算gap 时间
     ts = time.time()
-    base_dt = datetime.datetime(2001, 1, 1, 0, 0)
+    base_dt = datetime.datetime(2001, 1, 1, 0, 0, tzinfo=datetime.timezone.utc)
     date = (ts - base_dt.timestamp() - int(os.environ['VAR_INTERVAL']))* 1000000000
 
     con = sqlite3.connect(CHAT_DB)
@@ -62,5 +62,5 @@ if __name__ == "__main__":
     print("---")
 
     for message in messages:
-        print(f"{message} | shell=")
+        print(f"{message} | shell=$0 | param1=hahaha")
     
