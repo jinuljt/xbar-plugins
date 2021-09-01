@@ -8,6 +8,10 @@
 - 点击xbar menu中短信既拷贝验证码到剪贴板
 - 增加webhook，上传短信内容到云端。
 
+### TODO
+
+- 点开menu保留最后x条短信
+
 
 ### 注意
 **需赋予 xbar Full Disk Access 权限**。
