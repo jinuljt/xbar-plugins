@@ -9,7 +9,7 @@
 # Variables become preferences in the app:
 #
 #  <xbar.var>string(VAR_WEBHOOK=""): 上传短信内容到webhook</xbar.var>
-#  <xbar.var>string(VAR_LATEST_ROW_ID=""): ！！！不要修改。上一次的最后一条rowid</xbar.var>
+#  <xbar.var>number(VAR_LATEST_ROW_ID=""): ！！！不要修改。上一次的最后一条rowid</xbar.var>
 
 
 import datetime
@@ -50,7 +50,7 @@ class Config:
 
     def __setattr__(self, name, value):
         name = f"VAR_{name}"
-        value = str(value)
+        value = value
 
         data = read_config()
         data[name] = value
@@ -98,7 +98,7 @@ def get_messages():
     common_messages = []
 
     try:
-        latest_row_id = int(config.LATEST_ROW_ID)
+        latest_row_id = config.LATEST_ROW_ID
     except Exception:
         latest_row_id = 0
 
