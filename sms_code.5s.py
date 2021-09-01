@@ -13,13 +13,14 @@
 
 
 import datetime
-import time
 import os
 import re
 import sqlite3
 import subprocess
 import sys
 import json
+import urllib
+import urllib.request
 
 
 CHAT_DB = f"{os.environ['HOME']}/Library/Messages/chat.db"
@@ -42,9 +43,8 @@ def write_config(data):
 
 
 class Config:
-
     def __getattr__(self, attr):
-        # 只有开大 plugin browser 才会重新加载 VAR_，所以每次都从文件读取
+        # 只有打开 plugin browser 才会重新加载 VAR_，所以每次都从文件读取
         data = read_config()
         return data.get(f'VAR_{attr}', None)
 
@@ -60,10 +60,30 @@ config = Config()
 
 
 def do_webhook(row):
-    # TODO webhook
-    _, text, is_from_me, date = row
-    ts = datetime.datetime(2001, 1, 1, 0, 0, tzinfo=datetime.timezone.utc).timestamp() + date / 1000000000
-    pass
+    if not config.WEBHOOK:
+        return ""
+
+    data = {
+        "message": row[1],
+        "category": 'Send' if row[2] == '1' else 'Received',
+        "timestamp": datetime.datetime(2001, 1, 1, 0, 0, tzinfo=datetime.timezone.utc).timestamp() + \
+            int(row[3]) / 1000000000,
+        "phone": row[4]
+    }
+
+    req = urllib.request.Request(
+        url=config.WEBHOOK,
+        data=json.dumps(data).encode(),
+        headers={"Content-Type": "application/json; charset=utf-8"},
+        method="POST"
+    )
+
+    try:
+        with urllib.request.urlopen(req) as resp:
+            return ""
+    except Exception as e:
+        return f"post to {config.WEBHOOK} {data} fail due to {e}"
+
 
 def text_to_clipboard(text):
     p = subprocess.Popen("pbcopy", stdin=subprocess.PIPE)
@@ -81,18 +101,23 @@ def get_messages():
         latest_row_id = 0
 
     if latest_row_id == 0:
-        cur.execute(f"""SELECT ROWID, text, is_from_me, date
-        FROM message WHERE text IS NOT NULL ORDER BY ROWID DESC LIMIT 1""")
+        cur.execute(f"""SELECT m.ROWID, m.text, m.is_from_me, m.date, c.chat_identifier
+        FROM message  as m, chat_message_join as cmj, chat as c
+        WHERE m.ROWID = cmj.message_id AND c.ROWID = cmj.chat_id AND m.text IS NOT NULL
+        ORDER BY m.ROWID DESC LIMIT 1""")
     else:
         cur.execute(
-            f"SELECT ROWID, text, is_from_me, date FROM message WHERE text IS NOT NULL AND  ROWID > ?",
+            f"""SELECT m.ROWID, m.text, m.is_from_me, m.date, c.chat_identifier
+            FROM message  as m, chat_message_join as cmj, chat as c
+            WHERE m.ROWID = cmj.message_id AND c.ROWID = cmj.chat_id AND m.text IS NOT NULL AND m.ROWID > ?""",
             (config.LATEST_ROW_ID,)
         )
 
     for row in cur.fetchall():
-        do_webhook(row)
+        err = do_webhook(row)
+        if err: messages.append(err)
 
-        latest_row_id = row[0]
+        config.LATEST_ROW_ID = row[0]
         message = row[1]
         if not message: continue
 
@@ -106,8 +131,7 @@ def get_messages():
                 messages.append((code, message))
 
                 # 注入剪贴板
-                text_to_clipboard(code)
-    config.LATEST_ROW_ID = latest_row_id
+                text_to_clipboard(code)        
     con.close()
     return messages
 

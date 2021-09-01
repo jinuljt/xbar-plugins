@@ -8,9 +8,33 @@
 - 点击xbar menu中短信既拷贝验证码到剪贴板
 
 
-需赋予**xbar** Full Disk Access 权限。见下图
+### 注意
+**需赋予**xbar** Full Disk Access 权限**。
 
 ![](images/macosx_full_disk_access.png)
 
 ### TODO 
 - 通过webhook提交短信
+
+
+## FAQ
+
+### Q: 如果脚本运行时间超过设置的插件refresh事件，会不会出现插件（脚本）被运行多次的问题？
+A：不会，根据测试，xbar的refresh实质是当前插件执行完成后下一次运行的间隔。
+
+```
+# 配置refresh 为 1s
+import datetime
+import time
+
+now = datetime.datetime.now()
+s = now.strftime("%Y-%m-%d %H:%M:%S")
+s += " => "
+
+time.sleep(5)
+
+after = datetime.datetime.now()
+s += after.strftime("%Y-%m-%d %H:%M:%S")
+
+print(s)
+```
