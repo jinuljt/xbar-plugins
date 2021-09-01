@@ -93,7 +93,9 @@ def text_to_clipboard(text):
 def get_messages():
     con = sqlite3.connect(CHAT_DB)
     cur = con.cursor()
-    messages = []
+
+    code_messages = []
+    common_messages = []
 
     try:
         latest_row_id = int(config.LATEST_ROW_ID)
@@ -114,37 +116,36 @@ def get_messages():
         )
 
     for row in cur.fetchall():
-        err = do_webhook(row)
-        if err: messages.append(err)
+        error = do_webhook(row)
+        if error: common_messages.append(("error", error))
 
         config.LATEST_ROW_ID = row[0]
-        message = row[1]
-        if not message: continue
-
+        text = row[1]
         # 是否符合验证码短信特征
-        if re.search(SEARCH_PATTERN, message):
-
+        if re.search(SEARCH_PATTERN, text):
             # 提取短信验证码
-            m = re.search(CODE_PATTERN, message)
+            m = re.search(CODE_PATTERN, text)
             if m:
-                code = message[m.start():m.end()]
-                messages.append((code, message))
-
+                code = text[m.start():m.end()]
+                code_messages.append((code, text))
                 # 注入剪贴板
-                text_to_clipboard(code)        
+                text_to_clipboard(code)
+                continue
+        
+        common_messages.append(("", text))
     con.close()
-    return messages
+    return code_messages, common_messages
 
 
 if __name__ == "__main__":
     if len(sys.argv) == 1:
-        messages = get_messages()
-        if len(messages) > 0:
-            print(f"📬({len(messages)})| color=red")
-        else:
+        code_messages, common_messages = get_messages()
+        if len(code_messages) + len(common_messages) == 0:
             print("🈳")
+        else:
+            print(f"📬({len(code_messages)})| color=red")
         print("---")
-        for code, message in messages:
+        for code, message in code_messages + common_messages:
             print(f"{code} =》 {message} | shell=\"{sys.argv[0]}\" param1={code}")
     else:
         text_to_clipboard(sys.argv[1])
