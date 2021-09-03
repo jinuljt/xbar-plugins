@@ -24,7 +24,7 @@ import urllib.request
 
 
 CHAT_DB = f"{os.environ['HOME']}/Library/Messages/chat.db"
-SEARCH_PATTERN = "(验证码)"  # 验证码短信特征
+SEARCH_PATTERN = "(验证码|动态码)"  # 验证码短信特征
 CODE_PATTERN = "[0-9]{4,6}"  # 验证码特征
 
 
