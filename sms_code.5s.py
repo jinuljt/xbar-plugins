@@ -9,6 +9,7 @@
 # Variables become preferences in the app:
 #
 #  <xbar.var>string(VAR_WEBHOOK=""): 上传短信内容到webhook</xbar.var>
+#  <xbar.var>string(VAR_SEARCH_PATTERN="验证码,动态码"): 关键词，用于判断是否为短信。</xbar.var>
 #  <xbar.var>number(VAR_LATEST_ROW_ID=""): ！！！不要修改。上一次的最后一条rowid</xbar.var>
 
 
@@ -24,11 +25,9 @@ import urllib.request
 
 
 CHAT_DB = f"{os.environ['HOME']}/Library/Messages/chat.db"
-SEARCH_PATTERN = "(验证码|动态码)"  # 验证码短信特征
-CODE_PATTERN = "[0-9]{4,6}"  # 验证码特征
-
-
+CODE_PATTERN = "[0-9]{4,6}"
 config_filename = f"{os.path.abspath(__file__)}.vars.json"
+
 def read_config():
     # 读取配置文件
     data = {}
@@ -46,7 +45,9 @@ class Config:
     def __getattr__(self, attr):
         # 只有打开 plugin browser 才会重新加载 VAR_，所以每次都从文件读取
         data = read_config()
-        return data.get(f'VAR_{attr}', None)
+
+        attr = f'VAR_{attr}'
+        return data.get(attr, os.environ.get(attr, None))
 
     def __setattr__(self, name, value):
         name = f"VAR_{name}"
@@ -119,10 +120,11 @@ def get_messages():
         error = do_webhook(row)
         if error: common_messages.append(("error", error))
 
-        config.LATEST_ROW_ID = row[0]
+        #config.LATEST_ROW_ID = row[0]
         text = row[1]
         # 是否符合验证码短信特征
-        if re.search(SEARCH_PATTERN, text):
+        print(text, config.SEARCH_PATTERN)
+        if re.search(f"({'|'.join(config.SEARCH_PATTERN.split(','))})", text):
             # 提取短信验证码
             m = re.search(CODE_PATTERN, text)
             if m:
