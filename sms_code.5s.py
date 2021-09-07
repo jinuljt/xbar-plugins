@@ -10,7 +10,6 @@
 #
 #  <xbar.var>string(VAR_WEBHOOK=""): 上传短信内容到webhook</xbar.var>
 #  <xbar.var>string(VAR_SEARCH_PATTERN="验证码,动态码"): 关键词，用于判断是否为短信。</xbar.var>
-#  <xbar.var>number(VAR_PREVIOUS_ROW_ID=""): ！！！不要修改。新消息到来前的 ROW ID</xbar.var>
 #  <xbar.var>number(VAR_LATEST_ROW_ID=""): ！！！不要修改。新消息ROW ID</xbar.var>
 
 
@@ -27,6 +26,7 @@ import urllib.request
 
 CHAT_DB = f"{os.environ['HOME']}/Library/Messages/chat.db"
 CODE_PATTERN = "[0-9]{4,6}"
+RETAIN_COUNT = 10  # 保留显示最后n条短信
 config_filename = f"{os.path.abspath(__file__)}.vars.json"
 
 def read_config():
@@ -107,29 +107,25 @@ def fetch_rows(latest_row_id):
             f"""SELECT m.ROWID, m.text, m.is_from_me, m.date, c.chat_identifier
             FROM message  as m, chat_message_join as cmj, chat as c
             WHERE m.ROWID = cmj.message_id AND c.ROWID = cmj.chat_id AND m.text IS NOT NULL AND m.ROWID > ?""",
-            (config.LATEST_ROW_ID,)
+            (latest_row_id,)
         )
         rows = cur.fetchall()
     con.close()
     return rows
 
 def get_messages():
-
     code_messages = []
     common_messages = []
 
-    is_previous = False
-    rows = fetch_rows(config.LATEST_ROW_ID or 0)
-    if not rows:
-        is_previous = True
-        rows = fetch_rows(config.PREVIOUS_ROW_ID or 0)
+    latest_row_id = max((config.LATEST_ROW_ID or 0) - RETAIN_COUNT, 0)
+    rows = fetch_rows(latest_row_id)
 
-    for row in rows:
-        error = do_webhook(row)
-        if error: common_messages.append(("error", error))
+    for idx, row in enumerate(rows, 1):
+        if idx > RETAIN_COUNT:
+            error = do_webhook(row)
+            if error: common_messages.append(("error", error))
 
         config.LATEST_ROW_ID = row[0]
-
         # 是否符合验证码短信特征
         text = row[1]
         if re.search(f"({'|'.join(config.SEARCH_PATTERN.split(','))})", text):
@@ -138,27 +134,23 @@ def get_messages():
             if m:
                 code = text[m.start():m.end()]
                 code_messages.append((code, text))
-                
+
                 # 注入剪贴板
-                if not is_previous: 
+                if idx > RETAIN_COUNT:
                     text_to_clipboard(code)
-                    
+
                 continue
         common_messages.append(("", text))
-
-    if not is_previous:
-        config.PREVIOUS_ROW_ID = config.LATEST_ROW_ID
-
     return code_messages, common_messages
 
 
 if __name__ == "__main__":
     if len(sys.argv) == 1:
         code_messages, common_messages = get_messages()
-        if len(code_messages) + len(common_messages) == 0:
-            print("🈳")
-        else:
+        if len(code_messages):
             print(f"📬({len(code_messages)})| color=red")
+        else:
+            print("🈳")
         print("---")
         for code, message in code_messages + common_messages:
             print(f"{code} =》 {message} | shell=\"{sys.argv[0]}\" param1={code}")
