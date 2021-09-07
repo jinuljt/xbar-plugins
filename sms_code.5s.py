@@ -10,7 +10,8 @@
 #
 #  <xbar.var>string(VAR_WEBHOOK=""): 上传短信内容到webhook</xbar.var>
 #  <xbar.var>string(VAR_SEARCH_PATTERN="验证码,动态码"): 关键词，用于判断是否为短信。</xbar.var>
-#  <xbar.var>number(VAR_LATEST_ROW_ID=""): ！！！不要修改。上一次的最后一条rowid</xbar.var>
+#  <xbar.var>number(VAR_PREVIOUS_ROW_ID=""): ！！！不要修改。新消息到来前的 ROW ID</xbar.var>
+#  <xbar.var>number(VAR_LATEST_ROW_ID=""): ！！！不要修改。新消息ROW ID</xbar.var>
 
 
 import datetime
@@ -91,23 +92,16 @@ def text_to_clipboard(text):
     p.communicate(text.encode())
 
 
-def get_messages():
+def fetch_rows(latest_row_id):
     con = sqlite3.connect(CHAT_DB)
     cur = con.cursor()
-
-    code_messages = []
-    common_messages = []
-
-    try:
-        latest_row_id = config.LATEST_ROW_ID
-    except Exception:
-        latest_row_id = 0
 
     if latest_row_id == 0:
         cur.execute(f"""SELECT m.ROWID, m.text, m.is_from_me, m.date, c.chat_identifier
         FROM message  as m, chat_message_join as cmj, chat as c
         WHERE m.ROWID = cmj.message_id AND c.ROWID = cmj.chat_id AND m.text IS NOT NULL
         ORDER BY m.ROWID DESC LIMIT 1""")
+        rows = cur.fetchall()
     else:
         cur.execute(
             f"""SELECT m.ROWID, m.text, m.is_from_me, m.date, c.chat_identifier
@@ -115,27 +109,46 @@ def get_messages():
             WHERE m.ROWID = cmj.message_id AND c.ROWID = cmj.chat_id AND m.text IS NOT NULL AND m.ROWID > ?""",
             (config.LATEST_ROW_ID,)
         )
+        rows = cur.fetchall()
+    con.close()
+    return rows
 
-    for row in cur.fetchall():
+def get_messages():
+
+    code_messages = []
+    common_messages = []
+
+    is_previous = False
+    rows = fetch_rows(config.LATEST_ROW_ID or 0)
+    if not rows:
+        is_previous = True
+        rows = fetch_rows(config.PREVIOUS_ROW_ID or 0)
+
+    for row in rows:
         error = do_webhook(row)
         if error: common_messages.append(("error", error))
 
-        #config.LATEST_ROW_ID = row[0]
-        text = row[1]
+        config.LATEST_ROW_ID = row[0]
+
         # 是否符合验证码短信特征
-        print(text, config.SEARCH_PATTERN)
+        text = row[1]
         if re.search(f"({'|'.join(config.SEARCH_PATTERN.split(','))})", text):
             # 提取短信验证码
             m = re.search(CODE_PATTERN, text)
             if m:
                 code = text[m.start():m.end()]
                 code_messages.append((code, text))
+                
                 # 注入剪贴板
-                text_to_clipboard(code)
+                if not is_previous: 
+                    text_to_clipboard(code)
+                    
                 continue
-        
         common_messages.append(("", text))
-    con.close()
+
+    if not is_previous:
+        config.PREVIOUS_ROW_ID = config.LATEST_ROW_ID
+
     return code_messages, common_messages
 
 
