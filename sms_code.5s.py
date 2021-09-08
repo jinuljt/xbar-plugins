@@ -153,6 +153,7 @@ if __name__ == "__main__":
             print("🈳")
         print("---")
         for code, message in code_messages + common_messages:
+            message = message.encode('unicode_escape').decode('utf-8')
             print(f"{code} =》 {message} | shell=\"{sys.argv[0]}\" param1={code}")
     else:
         text_to_clipboard(sys.argv[1])
