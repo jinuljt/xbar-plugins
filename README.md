@@ -10,12 +10,17 @@
 - 保留最后10条短信，不会重复注入剪贴板，除非有新的验证码短信
 - 新短信验证码通过MacOS Notification通知
 
-
-
 ### 注意
 **需赋予 xbar Full Disk Access 权限**。
 
 ![](images/macosx_full_disk_access.png)
+
+
+### 该插件做了什么
+
+- 通过读取iMessage SQLite 数据库获得短信内容
+- 使用pbcopy命令注入剪贴板
+- 使用AppleScript display命令使用MacOS Notification
 
 ## FAQ
 
