@@ -92,40 +92,43 @@ def text_to_clipboard(text):
     p.communicate(text.encode())
 
 
-def fetch_rows(latest_row_id):
+def display(title, body):
+    subprocess.run(["osascript", "-e", f"display notification \"{body}\" with title \"{title}\""])
+
+
+def fetch_rows():
     con = sqlite3.connect(CHAT_DB)
     cur = con.cursor()
 
-    if latest_row_id == 0:
-        cur.execute(f"""SELECT m.ROWID, m.text, m.is_from_me, m.date, c.chat_identifier
-        FROM message  as m, chat_message_join as cmj, chat as c
-        WHERE m.ROWID = cmj.message_id AND c.ROWID = cmj.chat_id AND m.text IS NOT NULL
-        ORDER BY m.ROWID DESC LIMIT 1""")
-        rows = cur.fetchall()
-    else:
-        cur.execute(
-            f"""SELECT m.ROWID, m.text, m.is_from_me, m.date, c.chat_identifier
-            FROM message  as m, chat_message_join as cmj, chat as c
-            WHERE m.ROWID = cmj.message_id AND c.ROWID = cmj.chat_id AND m.text IS NOT NULL AND m.ROWID > ?""",
-            (latest_row_id,)
-        )
-        rows = cur.fetchall()
+    cur.execute(f"""SELECT m.ROWID, m.text, m.is_from_me, m.date, c.chat_identifier
+    FROM message  as m, chat_message_join as cmj, chat as c
+    WHERE m.ROWID = cmj.message_id AND c.ROWID = cmj.chat_id AND m.text IS NOT NULL
+    ORDER BY m.ROWID DESC LIMIT ?""", (RETAIN_COUNT,))
+    rows = cur.fetchall()
+
     con.close()
     return rows
 
 def get_messages():
-    code_messages = []
-    common_messages = []
+    """
+    messages = [('code', 'messages')]
+    """
 
-    latest_row_id = max((config.LATEST_ROW_ID or 0) - RETAIN_COUNT, 0)
-    rows = fetch_rows(latest_row_id)
+    messages = []
 
-    for idx, row in enumerate(rows, 1):
-        if idx > RETAIN_COUNT:
+    latest_row_id = config.LATEST_ROW_ID or 0
+    rows = fetch_rows()
+    if rows:
+        config.LATEST_ROW_ID = rows[0][0]
+
+
+    for row in rows:
+        if row[0] > latest_row_id:
             error = do_webhook(row)
-            if error: common_messages.append(("error", error))
+            if error: 
+                # TODO notification
+                pass
 
-        config.LATEST_ROW_ID = row[0]
         # 是否符合验证码短信特征
         text = row[1]
         if re.search(f"({'|'.join(config.SEARCH_PATTERN.split(','))})", text):
@@ -133,26 +136,31 @@ def get_messages():
             m = re.search(CODE_PATTERN, text)
             if m:
                 code = text[m.start():m.end()]
-                code_messages.append((code, text))
+                messages.append((code, text))
 
-                # 注入剪贴板
-                if idx > RETAIN_COUNT:
+                # 注入剪贴板、notification
+                if row[0] > latest_row_id:
                     text_to_clipboard(code)
+                    display(f"{code} 已复制到剪贴板", text)
+                    # TODO send to notification
 
                 continue
-        common_messages.append(("", text))
-    return code_messages, common_messages
+        messages.append(("", text))
+    return messages
 
 
 if __name__ == "__main__":
     if len(sys.argv) == 1:
-        code_messages, common_messages = get_messages()
-        if len(code_messages):
-            print(f"📬({len(code_messages)})| color=red")
+        messages = get_messages()
+        code_count = len([m for c,m in messages if c])
+
+        if code_count:
+            print(f"📬({code_count})| color=red")
         else:
-            print("🈳")
+            print("📬")
         print("---")
-        for code, message in code_messages + common_messages:
+        
+        for code, message in messages:
             message = message.encode('unicode_escape').decode('utf-8')
             print(f"{code} =》 {message} | shell=\"{sys.argv[0]}\" param1={code}")
     else:
